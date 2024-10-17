@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "openrelik-ai-common"
+version = "2024.10.17"
+description = "Common utilities for OpenRelik AI functionality"
+authors = ["Johan Berggren <jberggren@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+google-cloud-aiplatform = "^1.70.0"
+ollama = "^0.3.3"
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.3.3"
+pytest-cov = "^5.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
