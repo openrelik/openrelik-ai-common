@@ -17,6 +17,7 @@ import os
 PROVIDER_CONFIG = {
     "ollama": ["OLLAMA_SERVER_URL", "OLLAMA_DEFAULT_MODEL"],
     "vertexai": ["VERTEXAI_PROJECT_ID", "VERTEXAI_DEFAULT_MODEL"],
+    "googleai": ["GOOGLEAI_API_KEY", "GOOGLEAI_DEFAULT_MODEL"],
 }
 
 
