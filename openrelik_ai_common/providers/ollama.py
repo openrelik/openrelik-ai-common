@@ -19,7 +19,7 @@ from ollama import Client
 
 
 class Ollama(interface.LLMProvider):
-    """A LLM provider for the ollama server."""
+    """A LLM provider for the Ollama server."""
 
     NAME = "ollama"
     DISPLAY_NAME = "Ollama"
@@ -38,6 +38,7 @@ class Ollama(interface.LLMProvider):
         Returns:
             The number of tokens in the prompt.
         """
+        # Rough estimate: ~4chars UTF8, 1bytes per char.
         return len(prompt) / 4
 
     def generate(self, prompt: str) -> str:

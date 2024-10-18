@@ -15,8 +15,8 @@
 import os
 
 PROVIDER_CONFIG = {
-    "ollama": ["OLLAMA_SERVER_URL"],
-    "vertexai": ["VERTEXAI_PROJECT_ID"],
+    "ollama": ["OLLAMA_SERVER_URL", "OLLAMA_DEFAULT_MODEL"],
+    "vertexai": ["VERTEXAI_PROJECT_ID", "VERTEXAI_DEFAULT_MODEL"],
 }
 
 
