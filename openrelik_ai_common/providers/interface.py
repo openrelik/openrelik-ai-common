@@ -30,7 +30,7 @@ class LLMProvider:
 
     def __init__(
         self,
-        model_name: str,
+        model_name: str = None,
         temperature: float = DEFAULT_TEMPERATURE,
         top_p: float = DEFAULT_TOP_P,
         top_k: int = DEFAULT_TOP_K,
@@ -64,8 +64,29 @@ class LLMProvider:
             raise Exception(f"{self.NAME} config not found")
         config.update(config_from_environment)
 
+        if not model_name:
+            config["model"] = config.get("default_model")
+
         # Expose the config as an attribute.
         self.config = config
+
+    def to_dict(self):
+        """Convert the LLM provider to a dictionary.
+
+        Returns:
+            A dictionary representation of the LLM provider.
+        """
+        return {
+            "name": self.NAME,
+            "display_name": self.DISPLAY_NAME,
+            "config": {
+                "model": self.config.get("model"),
+                "temperature": self.config.get("temperature"),
+                "top_p": self.config.get("top_p"),
+                "top_k": self.config.get("top_k"),
+                "max_output_tokens": self.config.get("max_output_tokens"),
+            },
+        }
 
     def count_tokens(self, prompt: str):
         """
