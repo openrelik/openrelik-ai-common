@@ -1,5 +1,4 @@
-# openrelik-ai-common
-Common utilities for OpenRelik AI functionality.
+### Common utilities for OpenRelik AI functionality.
 
 ```python
 # LLM providers are configured via environment variables
