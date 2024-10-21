@@ -13,9 +13,44 @@
 # limitations under the License.
 """LLM provider for the ollama server."""
 
-from . import interface, manager
+from typing import Union
 
 from ollama import Client
+
+from . import interface, manager
+
+
+class ChatSession:
+    """A chat session with the ollama server."""
+
+    def __init__(self, client: Client, model_name: str, system: str = None):
+        self.client = client
+        self.model = model_name
+        self.history = []
+
+        # Set the system instructions. Ollama doesn't support this for chats, only for
+        # generating text. We work around this by setting an explicit pre-prompt in the
+        # chat history.
+        if system:
+            self.history.append({"role": "system", "content": system})
+
+    def send_message(self, prompt: str):
+        """Send a message to the chat session.
+
+        Args:
+            message: The message to send.
+
+        Returns:
+            The response from the chat session.
+        """
+        message = {"role": "user", "content": prompt}
+        self.history.append(message)
+        response = self.client.chat(
+            messages=self.history,
+            model=self.model,
+        )
+        self.history.append(response.get("message", {}))
+        return response
 
 
 class Ollama(interface.LLMProvider):
@@ -25,8 +60,19 @@ class Ollama(interface.LLMProvider):
     DISPLAY_NAME = "Ollama"
 
     def __init__(self, **kwargs):
+        """Initialize the Ollama provider.
+
+        Attributes:
+            client: The Ollama client.
+            chat_session: A chat session.
+        """
         super().__init__(**kwargs)
         self.client = Client(host=self.config.get("server_url"))
+        self.chat_session = ChatSession(
+            client=self.client,
+            model_name=self.config.get("model"),
+            system=self.config.get("system_instructions"),
+        )
 
     def count_tokens(self, prompt: str):
         """
@@ -41,7 +87,7 @@ class Ollama(interface.LLMProvider):
         # Rough estimate: ~4chars UTF8, 1bytes per char.
         return len(prompt) / 4
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, as_object: bool = False) -> Union[str, object]:
         """Generate text using the ollama server.
 
         Args:
@@ -53,16 +99,32 @@ class Ollama(interface.LLMProvider):
         Returns:
             The generated text as a string.
         """
-        client = Client(host=self.config.get("server_url"))
-        response = client.generate(
+        response = self.client.generate(
             prompt=prompt,
             model=self.config.get("model"),
+            system=self.config.get("system_instructions"),
             options={
                 "temperature": self.config.get("temperature"),
                 "num_predict": self.config.get("max_output_tokens"),
             },
         )
+        if as_object:
+            return response
         return response.get("response")
+
+    def chat(self, prompt: str, as_object: bool = False) -> Union[str, object]:
+        """Chat using the ollama server.
+
+        Args:
+            prompt: The user prompt to chat with.
+
+        Returns:
+            The chat response.
+        """
+        response = self.chat_session.send_message(prompt)
+        if as_object:
+            return response
+        return response.get("message", {}).get("content")
 
 
 manager.LLMManager.register_provider(Ollama)
