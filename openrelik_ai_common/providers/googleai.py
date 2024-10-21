@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Google AI LLM provider."""
+from typing import Union
+
 import google.generativeai as genai
+from google.generativeai.types import HarmBlockThreshold, HarmCategory
 
 from . import interface, manager
 
@@ -23,10 +26,31 @@ class GoogleAI(interface.LLMProvider):
     NAME = "googleai"
     DISPLAY_NAME = "Google AI"
 
+    SAFETY_SETTINGS = {
+        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+    }
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         genai.configure(api_key=self.config.get("api_key"))
-        self.client = genai.GenerativeModel(self.config.get("model"))
+        self.client = genai.GenerativeModel(
+            model_name=self.config.get("model"),
+            generation_config=self.generation_config,
+            system_instruction=self.config.get("system_instructions"),
+            safety_settings=self.SAFETY_SETTINGS,
+        )
+        self.chat_session = self.client.start_chat()
+
+    @property
+    def generation_config(self):
+        return {
+            "temperature": self.config.get("temperature"),
+            "top_p": self.config.get("top_p_sampling"),
+            "top_k": self.config.get("top_k_sampling"),
+        }
 
     def count_tokens(self, prompt: str):
         """
@@ -40,7 +64,7 @@ class GoogleAI(interface.LLMProvider):
         """
         return self.client.count_tokens(prompt).total_tokens
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, as_object: bool = False) -> Union[str, object]:
         """
         Generate text using the Google AI service.
 
@@ -50,13 +74,23 @@ class GoogleAI(interface.LLMProvider):
         Returns:
             The generated text as a string.
         """
-        response = self.client.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                max_output_tokens=self.config.get("max_output_tokens"),
-                temperature=self.config.get("temperature"),
-            ),
-        )
+        response = self.client.generate_content(prompt)
+        if as_object:
+            return response
+        return response.text
+
+    def chat(self, prompt: str, as_object: bool = False) -> Union[str, object]:
+        """Chat using the Google AI service.
+
+        Args:
+            prompt: The user prompt to chat with.
+
+        Returns:
+            The chat response.
+        """
+        response = self.chat_session.send_message(prompt)
+        if as_object:
+            return response
         return response.text
 
 

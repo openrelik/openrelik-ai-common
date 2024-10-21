@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Vertex AI LLM provider."""
-from google.cloud import aiplatform
+from typing import Union
 
-import vertexai.preview.generative_models as generative_models
-from vertexai.preview.generative_models import GenerativeModel
+import vertexai
+from vertexai.generative_models import GenerativeModel, HarmBlockThreshold, HarmCategory
 
 from . import interface, manager
 
@@ -26,12 +26,34 @@ class VertexAI(interface.LLMProvider):
     NAME = "vertexai"
     DISPLAY_NAME = "VertexAI"
 
+    SAFETY_SETTINGS = {
+        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+    }
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        aiplatform.init(
+        vertexai.init(
             project=self.config.get("project_id"),
         )
-        self.client = GenerativeModel(self.config.get("model"))
+
+        self.client = GenerativeModel(
+            model_name=self.config.get("model"),
+            generation_config=self.generation_config,
+            system_instruction=self.config.get("system_instructions"),
+            safety_settings=self.SAFETY_SETTINGS,
+        )
+        self.chat_session = self.client.start_chat()
+
+    @property
+    def generation_config(self):
+        return {
+            "temperature": self.config.get("temperature"),
+            "top_p": self.config.get("top_p_sampling"),
+            "top_k": self.config.get("top_k_sampling"),
+        }
 
     def count_tokens(self, prompt: str):
         """
@@ -45,7 +67,7 @@ class VertexAI(interface.LLMProvider):
         """
         return self.client.count_tokens(prompt).total_tokens
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, as_object: bool = False) -> Union[str, object]:
         """
         Generate text using the Vertex AI service.
 
@@ -55,24 +77,23 @@ class VertexAI(interface.LLMProvider):
         Returns:
             The generated text as a string.
         """
+        response = self.client.generate_content(prompt)
+        if as_object:
+            return response
+        return response.text
 
-        # Safety config
-        safety_config = {
-            generative_models.HarmCategory.HARM_CATEGORY_HATE_SPEECH: generative_models.HarmBlockThreshold.BLOCK_ONLY_HIGH,
-            generative_models.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: generative_models.HarmBlockThreshold.BLOCK_ONLY_HIGH,
-            generative_models.HarmCategory.HARM_CATEGORY_HARASSMENT: generative_models.HarmBlockThreshold.BLOCK_ONLY_HIGH,
-            generative_models.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: generative_models.HarmBlockThreshold.BLOCK_ONLY_HIGH,
-        }
+    def chat(self, prompt: str, as_object: bool = False) -> Union[str, object]:
+        """Chat using the Google AI service.
 
-        response = self.client.generate_content(
-            prompt,
-            generation_config={
-                "max_output_tokens": self.config.get("max_output_tokens"),
-                "temperature": self.config.get("temperature"),
-            },
-            safety_settings=safety_config,
-        )
+        Args:
+            prompt: The user prompt to chat with.
 
+        Returns:
+            The chat response.
+        """
+        response = self.chat_session.send_message(prompt)
+        if as_object:
+            return response
         return response.text
 
 
