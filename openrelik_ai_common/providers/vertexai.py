@@ -15,6 +15,7 @@
 from typing import Union
 
 import vertexai
+import google.generativeai as genai
 from vertexai.generative_models import GenerativeModel, HarmBlockThreshold, HarmCategory
 
 from . import interface, manager
@@ -45,7 +46,11 @@ class VertexAI(interface.LLMProvider):
             system_instruction=self.config.get("system_instructions"),
             safety_settings=self.SAFETY_SETTINGS,
         )
-        self.chat_session = self.client.start_chat()
+        self.chat_session = self.create_chat_session()
+    
+    def create_chat_session(self):
+        """Create chat session object."""
+        return self.client.start_chat()
 
     @property
     def generation_config(self):
@@ -55,7 +60,7 @@ class VertexAI(interface.LLMProvider):
             "top_k": self.config.get("top_k_sampling"),
         }
 
-    def count_tokens(self, prompt: str):
+    def count_tokens(self, prompt: str) -> int:
         """
         Count the number of tokens in a prompt using the Vertex AI service.
 
@@ -66,32 +71,66 @@ class VertexAI(interface.LLMProvider):
             The number of tokens in the prompt.
         """
         return self.client.count_tokens(prompt).total_tokens
+    
+    def max_input_tokens(self, model_name: str) -> int:
+        """
+        Get the max number of input tokens allowed for a model.
 
-    def generate(self, prompt: str, as_object: bool = False) -> Union[str, object]:
+        Args:
+            model_name: Model name to get max input token number for.
+
+        Returns:
+            The max number of input tokens allowed.
+        """
+        if self.max_input_tokens:
+            return self.max_input_tokens
+        self.max_input_tokens = genai.get_model(
+            f"models/{model_name}").input_token_limit
+        return self.max_input_tokens
+
+    def chat(
+        self, prompt: str, file_content: str = None, as_object: bool = False
+    ) -> Union[str, object]:
         """
         Generate text using the Vertex AI service.
 
         Args:
             prompt: The prompt to use for the generation.
+            file_content: If file_content is provided and the overall prompt
+                limit is more than maximum allowed input token count, then
+                the file content will be split into chunks and iterative
+                summary will be returned and used in the history session.
+            as_object: return response object from API else text.
 
         Returns:
             The generated text as a string.
         """
-        response = self.client.generate_content(prompt)
+        if file_content:
+            response = self.do_chunked_prompt(prompt, file_content, self.generate)
+        else:
+            response = self.client.generate_content(prompt)
         if as_object:
             return response
         return response.text
 
-    def chat(self, prompt: str, as_object: bool = False) -> Union[str, object]:
+    def chat(self, prompt: str, file_content: str = None, as_object: bool = False) -> Union[str, object]:
         """Chat using the Google AI service.
 
         Args:
             prompt: The user prompt to chat with.
+            file_content: If file_content is provided and the overall prompt
+                limit is more than maximum allowed input token count, then
+                the file content will be split into chunks and iterative
+                summary will be returned and used in the history session.
+            as_object: return response object from API else text.
 
         Returns:
             The chat response.
         """
-        response = self.chat_session.send_message(prompt)
+        if file_content:
+            response = self.do_chunked_prompt(prompt, file_content, self.chat)
+        else:
+            response = self.chat_session.send_message(prompt)
         if as_object:
             return response
         return response.text
