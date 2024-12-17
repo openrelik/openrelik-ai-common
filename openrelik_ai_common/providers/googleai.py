@@ -29,8 +29,8 @@ from . import interface
 from . import manager
 
 
-CALL_LIMIT = 20   # Number of calls to allow within a period
-ONE_MINUTE = 60   # One minute in seconds
+CALL_LIMIT = 20  # Number of calls to allow within a period
+ONE_MINUTE = 60  # One minute in seconds
 TEN_MINUTE = 10 * ONE_MINUTE
 
 
@@ -40,9 +40,9 @@ logger = logging.getLogger(__name__)
 
 def _backoff_hdlr(details) -> None:
     """Backoff handler for Google Generative AI calls."""
-    logger.info("Backing off %s seconds after %s tries",
-                details["wait"],
-                details["tries"])
+    logger.info(
+        "Backing off %s seconds after %s tries", details["wait"], details["tries"]
+    )
 
 
 class GoogleAI(interface.LLMProvider):
@@ -52,15 +52,11 @@ class GoogleAI(interface.LLMProvider):
     DISPLAY_NAME = "Google AI"
 
     SAFETY_SETTINGS = {
-        HarmCategory.HARM_CATEGORY_HATE_SPEECH: (
-            HarmBlockThreshold.BLOCK_ONLY_HIGH
-        ),
+        HarmCategory.HARM_CATEGORY_HATE_SPEECH: (HarmBlockThreshold.BLOCK_ONLY_HIGH),
         HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: (
             HarmBlockThreshold.BLOCK_ONLY_HIGH
         ),
-        HarmCategory.HARM_CATEGORY_HARASSMENT: (
-            HarmBlockThreshold.BLOCK_ONLY_HIGH
-        ),
+        HarmCategory.HARM_CATEGORY_HARASSMENT: (HarmBlockThreshold.BLOCK_ONLY_HIGH),
         HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: (
             HarmBlockThreshold.BLOCK_ONLY_HIGH
         ),
@@ -159,16 +155,12 @@ class GoogleAI(interface.LLMProvider):
                 API.
         """
         if file_content:
-            response = self.do_chunked_prompt(
-                prompt, file_content, self.generate
-            )
+            response = self.do_chunked_prompt(prompt, file_content, self.generate)
         else:
             response = self.client.generate_content(prompt)
         if as_object:
             return response
-        return ",".join(
-            [part.text for part in response.candidates[0].content.parts]
-        )
+        return ",".join([part.text for part in response.candidates[0].content.parts])
 
     # Retry with exponential backoff strategy when exceptions occur
     @backoff.on_exception(
@@ -214,9 +206,7 @@ class GoogleAI(interface.LLMProvider):
             response = self.chat_session.send_message(prompt)
         if as_object:
             return response
-        return ",".join(
-            [part.text for part in response.candidates[0].content.parts]
-        )
+        return ",".join([part.text for part in response.candidates[0].content.parts])
 
     def _ensure_nonempty_chat_parts(self):
         """Ensures that chat history parts are not empty for proto validation.

@@ -92,7 +92,7 @@ class Ollama(interface.LLMProvider):
         """
         # Rough estimate: ~4chars UTF8, 1bytes per char.
         return len(prompt) / 4
-    
+
     def max_input_tokens(self, model_name: str):
         """
         Get the max number of input tokens allowed for a model.
@@ -128,9 +128,7 @@ class Ollama(interface.LLMProvider):
             The generated text as a string.
         """
         if file_content:
-            response = self.do_chunked_prompt(
-                prompt, file_content, self.generate
-            )
+            response = self.do_chunked_prompt(prompt, file_content, self.generate)
         else:
             response = self.client.generate(
                 prompt=prompt,
@@ -146,8 +144,8 @@ class Ollama(interface.LLMProvider):
         return response.get("response")
 
     def chat(
-            self, prompt: str, file_content: str = None, as_object: bool = False
-        ) -> Union[str, object]:
+        self, prompt: str, file_content: str = None, as_object: bool = False
+    ) -> Union[str, object]:
         """Chat using the ollama server.
 
         Args:

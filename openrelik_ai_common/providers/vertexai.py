@@ -47,7 +47,7 @@ class VertexAI(interface.LLMProvider):
             safety_settings=self.SAFETY_SETTINGS,
         )
         self.chat_session = self.create_chat_session()
-    
+
     def create_chat_session(self):
         """Create chat session object."""
         return self.client.start_chat()
@@ -71,7 +71,7 @@ class VertexAI(interface.LLMProvider):
             The number of tokens in the prompt.
         """
         return self.client.count_tokens(prompt).total_tokens
-    
+
     def max_input_tokens(self, model_name: str) -> int:
         """
         Get the max number of input tokens allowed for a model.
@@ -85,7 +85,8 @@ class VertexAI(interface.LLMProvider):
         if self.max_input_tokens:
             return self.max_input_tokens
         self.max_input_tokens = genai.get_model(
-            f"models/{model_name}").input_token_limit
+            f"models/{model_name}"
+        ).input_token_limit
         return self.max_input_tokens
 
     def chat(
@@ -113,7 +114,9 @@ class VertexAI(interface.LLMProvider):
             return response
         return response.text
 
-    def chat(self, prompt: str, file_content: str = None, as_object: bool = False) -> Union[str, object]:
+    def chat(
+        self, prompt: str, file_content: str = None, as_object: bool = False
+    ) -> Union[str, object]:
         """Chat using the Google AI service.
 
         Args:
