@@ -31,7 +31,7 @@ from . import manager
 
 CALL_LIMIT = 20  # Number of calls to allow within a period
 ONE_MINUTE = 60  # One minute in seconds
-TEN_MINUTE = 10 * ONE_MINUTE
+TEN_MINUTES = 10 * ONE_MINUTE
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -99,7 +99,7 @@ class GoogleAI(interface.LLMProvider):
         """
         return self.client.count_tokens(prompt).total_tokens
 
-    def max_input_tokens(self, model_name: str) -> int:
+    def get_max_input_tokens(self, model_name: str) -> int:
         """Get the max number of input tokens allowed for a model.
 
         Args:
@@ -128,7 +128,7 @@ class GoogleAI(interface.LLMProvider):
             exceptions.Cancelled,
             ratelimit.RateLimitException,
         ),  # Exceptions to retry on
-        max_time=TEN_MINUTE,
+        max_time=TEN_MINUTES,
         on_backoff=_backoff_hdlr,  # Function to call when retrying
     )
     # Limit the number of calls to the model per minute
@@ -173,7 +173,7 @@ class GoogleAI(interface.LLMProvider):
             exceptions.Cancelled,
             ratelimit.RateLimitException,
         ),  # Exceptions to retry on
-        max_time=TEN_MINUTE,
+        max_time=TEN_MINUTES,
         on_backoff=_backoff_hdlr,  # Function to call when retrying
     )
     # Limit the number of calls to the model per minute

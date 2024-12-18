@@ -72,7 +72,7 @@ class VertexAI(interface.LLMProvider):
         """
         return self.client.count_tokens(prompt).total_tokens
 
-    def max_input_tokens(self, model_name: str) -> int:
+    def get_max_input_tokens(self, model_name: str) -> int:
         """
         Get the max number of input tokens allowed for a model.
 

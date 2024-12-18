@@ -23,7 +23,7 @@ DEFAULT_TOP_K_SAMPLING = 1
 
 FIRST_PROMPT_CHUNK_WRAPPER = """
 **This prompt has (Part {i}) of a file content:** \n
-**Please analyze this pars of the file:*** \n
+**Please analyze this part of the file:*** \n
 ```\n{chunk}\n```
 """
 
@@ -31,7 +31,7 @@ PROMPT_CHUNK_WRAPPER = """
 **This prompt has (Part {i}) of a file content:** \n
 **You already analyzed previous parts of the file, here was your report so far:** \n
 ```\n{summary}\n```
-**Please analyze this pars of the file:*** \n
+**Please analyze this part of the file:*** \n
 ```\n{chunk}\n```
 """
 
@@ -139,7 +139,7 @@ class LLMProvider:
         """
         raise NotImplementedError()
 
-    def max_input_tokens(self, model_name: str):
+    def get_max_input_tokens(self, model_name: str):
         """Get the max number of input tokens allowed for a model.
 
         Args:
@@ -264,7 +264,7 @@ class LLMProvider:
         Returns:
             A list of strings (chunks).
         """
-        max_size = self.max_input_tokens(self, self.config.get("model"))
+        max_size = self.get_max_input_tokens(self.config.get("model"))
         prompt_token_count = self.count_tokens(
             "\n".join(
                 [

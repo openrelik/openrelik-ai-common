@@ -93,7 +93,7 @@ class Ollama(interface.LLMProvider):
         # Rough estimate: ~4chars UTF8, 1bytes per char.
         return len(prompt) / 4
 
-    def max_input_tokens(self, model_name: str):
+    def get_max_input_tokens(self, model_name: str):
         """
         Get the max number of input tokens allowed for a model.
 
