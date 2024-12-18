@@ -19,6 +19,8 @@ from ollama import Client
 
 from . import interface, manager
 
+DEFAULT_MAX_OUTPUT_TOKENS = 2048
+
 
 class ChatSession:
     """A chat session with the ollama server."""
@@ -68,7 +70,11 @@ class Ollama(interface.LLMProvider):
         """
         super().__init__(**kwargs)
         self.client = Client(host=self.config.get("server_url"))
-        self.chat_session = ChatSession(
+        self.chat_session = self.create_chat_session()
+
+    def create_chat_session(self):
+        """Create a chat session with the Ollama server."""
+        return ChatSession(
             client=self.client,
             model_name=self.config.get("model"),
             system=self.config.get("system_instructions"),
@@ -87,11 +93,33 @@ class Ollama(interface.LLMProvider):
         # Rough estimate: ~4chars UTF8, 1bytes per char.
         return len(prompt) / 4
 
-    def generate(self, prompt: str, as_object: bool = False) -> Union[str, object]:
+    def get_max_input_tokens(self, model_name: str):
+        """
+        Get the max number of input tokens allowed for a model.
+
+        Args:
+            model_name: Model name to get max input token number for.
+
+        Returns:
+            The max number of input tokens allowed.
+        """
+        if self.max_input_tokens:
+            return self.max_input_tokens
+        self.max_input_tokens = DEFAULT_MAX_OUTPUT_TOKENS
+        return DEFAULT_MAX_OUTPUT_TOKENS
+
+    def generate(
+        self, prompt: str, file_content: str = None, as_object: bool = False
+    ) -> Union[str, object]:
         """Generate text using the ollama server.
 
         Args:
             prompt: The prompt to use for the generation.
+            file_content: If file_content is provided and the overall prompt
+                limit is more than maximum allowed input token count, then
+                the file content will be split into chunks and iterative
+                summary will be returned and used in the history session.
+            as_object: return response object from API else text.
 
         Raises:
             ValueError: If the generation fails.
@@ -99,29 +127,42 @@ class Ollama(interface.LLMProvider):
         Returns:
             The generated text as a string.
         """
-        response = self.client.generate(
-            prompt=prompt,
-            model=self.config.get("model"),
-            system=self.config.get("system_instructions"),
-            options={
-                "temperature": self.config.get("temperature"),
-                "num_predict": self.config.get("max_output_tokens"),
-            },
-        )
+        if file_content:
+            response = self.do_chunked_prompt(prompt, file_content, self.generate)
+        else:
+            response = self.client.generate(
+                prompt=prompt,
+                model=self.config.get("model"),
+                system=self.config.get("system_instructions"),
+                options={
+                    "temperature": self.config.get("temperature"),
+                    "num_predict": DEFAULT_MAX_OUTPUT_TOKENS,
+                },
+            )
         if as_object:
             return response
         return response.get("response")
 
-    def chat(self, prompt: str, as_object: bool = False) -> Union[str, object]:
+    def chat(
+        self, prompt: str, file_content: str = None, as_object: bool = False
+    ) -> Union[str, object]:
         """Chat using the ollama server.
 
         Args:
             prompt: The user prompt to chat with.
+            file_content: If file_content is provided and the overall prompt
+                limit is more than maximum allowed input token count, then
+                the file content will be split into chunks and iterative
+                summary will be returned and used in the history session.
+            as_object: return response object from API else text.
 
         Returns:
             The chat response.
         """
-        response = self.chat_session.send_message(prompt)
+        if file_content:
+            response = self.do_chunked_prompt(prompt, file_content, self.chat)
+        else:
+            response = self.chat_session.send_message(prompt)
         if as_object:
             return response
         return response.get("message", {}).get("content")
