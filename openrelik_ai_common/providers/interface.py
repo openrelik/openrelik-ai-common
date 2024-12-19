@@ -320,6 +320,8 @@ class LLMProvider:
         """Finds a suitable breakpoint for chunking.
 
         Prioritizes punctuation, newlines, and spaces.
+        Returns `end` if a breakpoint captures less than 10% of the
+        content *before* the breakpoint.
 
         Args:
             text: The text to search within.
@@ -333,9 +335,17 @@ class LLMProvider:
         if end >= len(text):
             return end
 
+        # Minimum breakpoint distance (10% of the chunk size)
+        min_breakpoint_distance = int((end - start) * 0.1)
+
         # Try to find a period, comma, newline (any type), or space
         for i in reversed(range(start, end)):
             char = text[i]
             if char in [".", ",", "\n", "\r", " "]:
-                return i
+                # Check if at least 10% of the chunk is captured
+                if (i - start) >= min_breakpoint_distance:
+                    return i
+                else:
+                    return end
+
         return end

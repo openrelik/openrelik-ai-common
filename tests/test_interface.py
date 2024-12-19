@@ -298,6 +298,13 @@ class TestDoChunkedPrompt(unittest.TestCase):
         # Assert that the method handles it correctly, returning the end
         self.assertEqual(breakpoint, start)
 
+    def test_find_breakpoint_less_than_10_percent(self):
+        text = "Th.isisaverylongsentencewithonlyoneseparatoratthebeginning"
+        start = 0
+        end = len(text) - 1
+        breakpoint = self.provider._find_breakpoint(text, start, end)
+        self.assertEqual(breakpoint, end)
+
 
 if __name__ == "__main__":
     unittest.main()
