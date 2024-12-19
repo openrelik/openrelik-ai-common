@@ -203,10 +203,10 @@ class LLMProvider:
             The generated response.
         """
         chunk, offset = self._get_next_chunk(
-            file_content, prompt, FIRST_PROMPT_CHUNK_WRAPPER
+            file_content, prompt, FIRST_PROMPT_CHUNK_WRAPPER.format(i=1, chunk="")
         )
         summary = None
-        if offset < len(file_content):
+        if offset >= len(file_content):
             # The data fits in single prompt
             summary = prompt_function(prompt=f"{prompt}\n{chunk}", as_object=True)
         else:
@@ -229,11 +229,12 @@ class LLMProvider:
                 chunk, offset = self._get_next_chunk(
                     file_content,
                     prompt,
+                    # This is used to calculate the remaning space for the chunk,
+                    # thus sending prompt with summary and chunk number only.
                     PROMPT_CHUNK_WRAPPER.format(
-                        i=chunk_number, chunk=chunk, summary=summary
+                        i=chunk_number, summary=str(summary), chunk=""
                     ),
                     offset,
-                    summary,
                 )
                 # if this chunk is not the last
                 if offset < len(file_content):
@@ -248,7 +249,6 @@ class LLMProvider:
         prompt: str,
         prompt_chunk_wrapper: str,
         offset: int = 0,
-        summary: str = None,
     ) -> Tuple[Optional[str], int]:
         """Chunks a string into segments of a maximum estimated token size.
 
@@ -259,7 +259,6 @@ class LLMProvider:
             prompt: The prompt to generate a response for.
             prompt_chunk_wrapper: The wrapper to use for the prompt chunk.
             offset: The offset to start chunking from.
-            summary: The summary of the previous chunks.
 
         Returns:
             A list of strings (chunks).
@@ -271,26 +270,39 @@ class LLMProvider:
                     self.config.get("system_instructions", ""),
                     prompt,
                     prompt_chunk_wrapper,
-                    summary or "",
                 ]
             )
         ) + math.ceil(self._get_chat_session_approx_string_length() / 4)
-        # Subtracting 100 chars as buffer to cover for indentations
-        # or inaccuracies due to assuming that a token is 4 chars.
-        remaning_tokens = max_size - prompt_token_count - 100
+        # Subtracting a buffer from content to cover for inaccuracies
+        # due to assuming that a token is 4 chars.
+        # Input-sensitive buffer calculation Formula:
+        base_buffer = 30  # Minimum buffer
+        length_factor = 0.0001
+        dynamic_buffer = int(base_buffer + (length_factor * max_size))
+
+        # --- Calculate remaining tokens ---
+        remaning_tokens = max_size - prompt_token_count - dynamic_buffer
+
+        # Raise an error if there are no remaining tokens for file content
+        if remaning_tokens <= 0:
+            raise ValueError(
+                "Prompt is too long. No space left for file content. "
+                f"Max tokens: {max_size}, prompt tokens: {prompt_token_count}, "
+                f"a buffer of at least {dynamic_buffer} must be provided "
+                " between prompt tokens and max tokens count!"
+            )
         chunk = None
         if offset < len(file_content):
             end_char = min(
                 offset + remaning_tokens * 4, len(file_content)
             )  # Estimate end char index
 
-            # Try to find a space to break the chunk more cleanly
-            break_point = file_content.rfind(" ", offset, end_char)
-            if break_point == -1:
-                break_point = end_char
+            # Try to find a suitable break point to break the chunk more cleanly
+            break_point = self._find_breakpoint(file_content, offset, end_char)
 
+            # Break *before* punctuation, newline, or space
             chunk = file_content[offset:break_point]
-            offset = break_point + 1
+            offset = break_point
         return chunk, offset
 
     def _get_chat_session_approx_string_length(self):
@@ -303,3 +315,27 @@ class LLMProvider:
             The length of the string representation of the object.
         """
         return len(str(self.chat_session)) if self.chat_session else 0
+
+    def _find_breakpoint(self, text: str, start: int, end: int) -> int:
+        """Finds a suitable breakpoint for chunking.
+
+        Prioritizes punctuation, newlines, and spaces.
+
+        Args:
+            text: The text to search within.
+            start: The starting index for the search (inclusive).
+            end: The ending index for the search (exclusive).
+
+        Returns:
+            The index of the found breakpoint (or `end` if none is found).
+        """
+        # If end_char is already the last character index
+        if end >= len(text):
+            return end
+
+        # Try to find a period, comma, newline (any type), or space
+        for i in reversed(range(start, end)):
+            char = text[i]
+            if char in [".", ",", "\n", "\r", " "]:
+                return i
+        return end
