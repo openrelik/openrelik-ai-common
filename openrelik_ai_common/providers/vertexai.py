@@ -14,8 +14,8 @@
 """Vertex AI LLM provider."""
 from typing import Union
 
-import vertexai
 import google.generativeai as genai
+import vertexai
 from vertexai.generative_models import GenerativeModel, HarmBlockThreshold, HarmCategory
 
 from . import interface, manager
@@ -48,10 +48,6 @@ class VertexAI(interface.LLMProvider):
         )
         self.chat_session = self.create_chat_session()
 
-    def create_chat_session(self):
-        """Create chat session object."""
-        return self.client.start_chat()
-
     @property
     def generation_config(self):
         return {
@@ -59,6 +55,10 @@ class VertexAI(interface.LLMProvider):
             "top_p": self.config.get("top_p_sampling"),
             "top_k": self.config.get("top_k_sampling"),
         }
+
+    def create_chat_session(self):
+        """Create chat session object."""
+        return self.client.start_chat()
 
     def count_tokens(self, prompt: str) -> int:
         """
@@ -89,54 +89,55 @@ class VertexAI(interface.LLMProvider):
         ).input_token_limit
         return self.max_input_tokens
 
-    def chat(
-        self, prompt: str, file_content: str = None, as_object: bool = False
-    ) -> Union[str, object]:
+    def response_to_text(self, response):
+        """Return response object as text.
+
+        Args:
+            response:
+                The response object from the Google AI service.
+
+        Returns:
+            str:
+                The response as text.
+        """
+        return response.text
+
+    def generate(self, prompt: str, as_object: bool = False) -> Union[str, object]:
         """
         Generate text using the Vertex AI service.
 
         Args:
             prompt: The prompt to use for the generation.
-            file_content: If file_content is provided and the overall prompt
-                limit is more than maximum allowed input token count, then
-                the file content will be split into chunks and iterative
-                summary will be returned and used in the history session.
             as_object: return response object from API else text.
 
         Returns:
             The generated text as a string.
         """
-        if file_content:
-            response = self.do_chunked_prompt(prompt, file_content, self.generate)
-        else:
-            response = self.client.generate_content(prompt)
+        response = self.client.generate_content(prompt)
         if as_object:
             return response
-        return response.text
+        return self.response_to_text(response)
 
     def chat(
-        self, prompt: str, file_content: str = None, as_object: bool = False
+        self, prompt: str, as_object: bool = False, chat_session: object = None
     ) -> Union[str, object]:
         """Chat using the Google AI service.
 
         Args:
             prompt: The user prompt to chat with.
-            file_content: If file_content is provided and the overall prompt
-                limit is more than maximum allowed input token count, then
-                the file content will be split into chunks and iterative
-                summary will be returned and used in the history session.
             as_object: return response object from API else text.
+            chat_session: Optional chat session object.
 
         Returns:
             The chat response.
         """
-        if file_content:
-            response = self.do_chunked_prompt(prompt, file_content, self.chat)
-        else:
-            response = self.chat_session.send_message(prompt)
+        if not chat_session:
+            chat_session = self.chat_session
+
+        response = self.chat_session.send_message(prompt)
         if as_object:
             return response
-        return response.text
+        return self.response_to_text(response)
 
 
 manager.LLMManager.register_provider(VertexAI)

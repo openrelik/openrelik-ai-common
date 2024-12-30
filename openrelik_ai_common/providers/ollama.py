@@ -20,6 +20,9 @@ from ollama import Client
 from . import interface, manager
 
 DEFAULT_MAX_OUTPUT_TOKENS = 2048
+MODEL_CONTEXT_WINDOW_SIZE = {
+    "gemma2:9b": 8192,
+}
 
 
 class ChatSession:
@@ -47,10 +50,7 @@ class ChatSession:
         """
         message = {"role": "user", "content": prompt}
         self.history.append(message)
-        response = self.client.chat(
-            messages=self.history,
-            model=self.model,
-        )
+        response = self.client.chat(messages=self.history, model=self.model)
         self.history.append(response.get("message", {}))
         return response
 
@@ -93,7 +93,7 @@ class Ollama(interface.LLMProvider):
         # Rough estimate: ~4chars UTF8, 1bytes per char.
         return len(prompt) / 4
 
-    def get_max_input_tokens(self, model_name: str):
+    def get_max_input_tokens(self, model_name: str = None):
         """
         Get the max number of input tokens allowed for a model.
 
@@ -105,20 +105,47 @@ class Ollama(interface.LLMProvider):
         """
         if self.max_input_tokens:
             return self.max_input_tokens
-        self.max_input_tokens = DEFAULT_MAX_OUTPUT_TOKENS
+
+        if model_name in MODEL_CONTEXT_WINDOW_SIZE:
+            print(
+                "using context window size for model",
+                model_name,
+                MODEL_CONTEXT_WINDOW_SIZE[model_name],
+            )
+            self.max_input_tokens = MODEL_CONTEXT_WINDOW_SIZE[model_name]
+        else:
+            self.max_input_tokens = DEFAULT_MAX_OUTPUT_TOKENS
         return DEFAULT_MAX_OUTPUT_TOKENS
 
-    def generate(
-        self, prompt: str, file_content: str = None, as_object: bool = False
-    ) -> Union[str, object]:
+    def response_to_text(self, response):
+        """
+        Extracts text content from a response object.
+
+        Args:
+            response: The response object, which can have different structures.
+
+        Returns:
+            The extracted text content, or None if no text could be found.
+        """
+        if isinstance(response, dict):
+            message_content = response.get("message", {}).get("content")
+            if message_content:
+                return message_content
+
+            response_value = response.get("response")
+            if response_value:
+                return response_value
+
+        elif isinstance(response, str):  # if response is already a string, return it
+            return response
+
+        return None  # Return None if no suitable structure is found
+
+    def generate(self, prompt: str, as_object: bool = False) -> Union[str, object]:
         """Generate text using the ollama server.
 
         Args:
             prompt: The prompt to use for the generation.
-            file_content: If file_content is provided and the overall prompt
-                limit is more than maximum allowed input token count, then
-                the file content will be split into chunks and iterative
-                summary will be returned and used in the history session.
             as_object: return response object from API else text.
 
         Raises:
@@ -127,45 +154,38 @@ class Ollama(interface.LLMProvider):
         Returns:
             The generated text as a string.
         """
-        if file_content:
-            response = self.do_chunked_prompt(prompt, file_content, self.generate)
-        else:
-            response = self.client.generate(
-                prompt=prompt,
-                model=self.config.get("model"),
-                system=self.config.get("system_instructions"),
-                options={
-                    "temperature": self.config.get("temperature"),
-                    "num_predict": DEFAULT_MAX_OUTPUT_TOKENS,
-                },
-            )
+
+        response = self.client.generate(
+            prompt=prompt,
+            model=self.config.get("model"),
+            system=self.config.get("system_instructions"),
+            options={
+                "temperature": self.config.get("temperature"),
+                "num_predict": DEFAULT_MAX_OUTPUT_TOKENS,
+            },
+        )
         if as_object:
             return response
-        return response.get("response")
+        return self.response_to_text(response)
 
     def chat(
-        self, prompt: str, file_content: str = None, as_object: bool = False
+        self, prompt: str, as_object: bool = False, chat_session: object = None
     ) -> Union[str, object]:
         """Chat using the ollama server.
 
         Args:
             prompt: The user prompt to chat with.
-            file_content: If file_content is provided and the overall prompt
-                limit is more than maximum allowed input token count, then
-                the file content will be split into chunks and iterative
-                summary will be returned and used in the history session.
             as_object: return response object from API else text.
 
         Returns:
             The chat response.
         """
-        if file_content:
-            response = self.do_chunked_prompt(prompt, file_content, self.chat)
-        else:
-            response = self.chat_session.send_message(prompt)
+        if not chat_session:
+            chat_session = self.chat_session
+        response = chat_session.send_message(prompt)
         if as_object:
             return response
-        return response.get("message", {}).get("content")
+        return self.response_to_text(response)
 
 
 manager.LLMManager.register_provider(Ollama)

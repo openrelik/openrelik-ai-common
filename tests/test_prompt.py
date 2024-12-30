@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import unittest
+
 from openrelik_ai_common.utils.prompt import prompt_from_template
 
 
