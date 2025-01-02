@@ -177,15 +177,12 @@ class LLMProvider:
         response = chunker.process_file_content()
         return self.response_to_text(response)
 
-    def chat(
-        self, prompt: str, as_object: bool = False, chat_session: object = None
-    ) -> Union[str, object]:
+    def chat(self, prompt: str, as_object: bool = False) -> Union[str, object]:
         """Chat using the LLM provider.
 
         Args:
             prompt: The user prompt to chat with.
             as_object: return response object from API else text.
-            chat_session: Optional chat session object.
 
         Returns:
             The chat response.

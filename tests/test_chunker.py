@@ -64,9 +64,7 @@ class MockLLMProvider(LLMProvider):
             return {"response": f"Generated: {prompt}"}
         return f"Generated: {prompt}"
 
-    def chat(
-        self, prompt: str, as_object: bool = False, chat_session: object = None
-    ) -> Union[str, object]:
+    def chat(self, prompt: str, as_object: bool = False) -> Union[str, object]:
         self.chat_session.append(prompt)
         if as_object:
             return {"response": f"Chat response: {prompt}"}
@@ -79,11 +77,7 @@ class TestDoChunkedPrompt(unittest.TestCase):
 
     def test_single_chunk(self):
         prompt = "Test prompt"
-        # file content is small enough to fit in one chunk
         file_content = "This is a short file content."
-        mock_prompt_function = MagicMock(
-            return_value={"response": "Summary of single chunk"}
-        )
 
         chunker = TextFileChunker(
             prompt=prompt,
@@ -95,7 +89,7 @@ class TestDoChunkedPrompt(unittest.TestCase):
 
         self.assertEqual(
             result,
-            {"response": "Chat response: Test prompt\nThis is a short file content."},
+            {"response": "Generated: Test prompt\nThis is a short file content."},
         )
 
     def test_prompt_too_long(self):
@@ -131,7 +125,7 @@ class TestDoChunkedPrompt(unittest.TestCase):
             llm=self.provider,
         )
         result = chunker.process_file_content()
-        self.assertEqual(result, {"response": "Chat response: Test prompt\nNone"})
+        self.assertEqual(result, {"response": "Generated: Test prompt\nNone"})
 
     def test_get_next_chunk_clean_break(self):
         self.provider.get_max_input_tokens = MagicMock(return_value=73)
@@ -207,20 +201,6 @@ class TestDoChunkedPrompt(unittest.TestCase):
         )
         self.assertIsNone(chunk)
         self.assertEqual(next_offset, 15)
-
-    def test_get_chat_session_approx_length(self):
-        chunker = TextFileChunker(
-            prompt="Test prompt",
-            file_content="Test file content",
-            llm=self.provider,
-        )
-        chunker.chat_session = ["Message 1", "Message 2"]
-        length = chunker._get_chat_session_approx_length()
-        self.assertEqual(length, len(str(["Message 1", "Message 2"])))
-
-        chunker.chat_session = []
-        length = chunker._get_chat_session_approx_length()
-        self.assertEqual(length, 0)
 
     def test_find_breakpoint_period(self):
         file_content = "Thisisasentence.Anothersentence"

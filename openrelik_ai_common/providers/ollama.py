@@ -168,9 +168,7 @@ class Ollama(interface.LLMProvider):
             return response
         return self.response_to_text(response)
 
-    def chat(
-        self, prompt: str, as_object: bool = False, chat_session: object = None
-    ) -> Union[str, object]:
+    def chat(self, prompt: str, as_object: bool = False) -> Union[str, object]:
         """Chat using the ollama server.
 
         Args:
@@ -180,9 +178,7 @@ class Ollama(interface.LLMProvider):
         Returns:
             The chat response.
         """
-        if not chat_session:
-            chat_session = self.chat_session
-        response = chat_session.send_message(prompt)
+        response = self.chat_session.send_message(prompt)
         if as_object:
             return response
         return self.response_to_text(response)

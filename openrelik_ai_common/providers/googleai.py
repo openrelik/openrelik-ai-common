@@ -131,6 +131,7 @@ class GoogleAI(interface.LLMProvider):
             exceptions.InternalServerError,
             exceptions.Cancelled,
             ratelimit.RateLimitException,
+            ValueError,
         ),  # Exceptions to retry on
         max_time=TEN_MINUTES,
         on_backoff=_backoff_handler,  # Function to call when retrying
@@ -164,37 +165,31 @@ class GoogleAI(interface.LLMProvider):
             exceptions.InternalServerError,
             exceptions.Cancelled,
             ratelimit.RateLimitException,
+            ValueError,
         ),  # Exceptions to retry on
         max_time=TEN_MINUTES,
         on_backoff=_backoff_handler,  # Function to call when retrying
     )
     @ratelimit.limits(calls=CALL_LIMIT, period=ONE_MINUTE)
     def chat(
-        self,
-        prompt: str,
-        as_object: bool = False,
-        chat_session: object = None,
+        self, prompt: str, as_object: bool = False
     ) -> Union[str, generation_types.GenerateContentResponse]:
         """Chat using the Google AI service.
 
         Args:
             prompt: The user prompt to chat with.
             as_object: return response object from API else text.
-            chat_session: Optional chat session object.
 
         Returns:
             str or object: Chat response as a string or response object from the API.
         """
-        if not chat_session:
-            chat_session = self.chat_session
-
-        self._ensure_nonempty_chat_parts(chat_session)
-        response = chat_session.send_message(prompt)
+        self._ensure_nonempty_chat_parts()
+        response = self.chat_session.send_message(prompt)
         if as_object:
             return response
         return response.text
 
-    def _ensure_nonempty_chat_parts(self, chat_session):
+    def _ensure_nonempty_chat_parts(self):
         """Ensures that chat history parts are not empty for proto validation.
 
         Since this is a multi-turn conversation, the history is sent with each
@@ -207,13 +202,13 @@ class GoogleAI(interface.LLMProvider):
         Args:
             chat_session: The chat session object.
         """
-        history = chat_session.history
+        history = self.chat_session.history
         history_patched = []
         for content in history:
             if not content.parts:
                 content.parts = [genai.types.content_types.to_part("ack")]
             history_patched.append(content)
-        chat_session.history = history_patched
+        self.chat_session.history = history_patched
 
 
 manager.LLMManager.register_provider(GoogleAI)

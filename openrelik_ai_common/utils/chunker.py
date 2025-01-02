@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import math
 from typing import Optional, Tuple, Union
 
 FIRST_PROMPT_CHUNK_WRAPPER = """
@@ -26,7 +25,6 @@ PROMPT_CHUNK_WRAPPER = """
 ```\n{summary}\n```
 **Please analyze this part of the file:*** \n
 ```\n{chunk}\n```
-**Include your analysis report of the previous part in your response.**
 """
 
 
@@ -55,7 +53,6 @@ class TextFileChunker:
         self.prompt = prompt
         self.file_content = file_content
         self.llm = llm
-        self.chat_session = llm.create_chat_session()
 
     def process_file_content(self) -> Union[str, object]:
         """
@@ -70,11 +67,7 @@ class TextFileChunker:
 
         if next_offset >= len(self.file_content):
             # If the entire file fits within the first chunk, process it directly
-            return self.llm.chat(
-                prompt=f"{self.prompt}\n{chunk}",
-                as_object=True,
-                chat_session=self.chat_session,
-            )
+            return self.llm.generate(prompt=f"{self.prompt}\n{chunk}", as_object=True)
         else:
             return self._iterative_summarization(chunk, next_offset)
 
@@ -107,10 +100,9 @@ class TextFileChunker:
             is_last_chunk = offset >= len(self.file_content)
 
             # Generate the summary for the current chunk
-            summary = self.llm.chat(
+            summary = self.llm.generate(
                 prompt=full_prompt,
                 as_object=is_last_chunk,
-                chat_session=self.chat_session,
             )
 
             # Prepare for the next iteration
@@ -119,10 +111,6 @@ class TextFileChunker:
             chunk, offset = self._get_next_chunk(
                 self.prompt, next_chunk_wrapper, offset
             )
-
-            # Reset the chat session if not the last chunk to save context space
-            if not is_last_chunk:
-                self.chat_session = self.llm.create_chat_session()
 
         return summary
 
@@ -245,7 +233,7 @@ class TextFileChunker:
                     prompt_chunk_wrapper,
                 ]
             )
-        ) + math.ceil(self._get_chat_session_approx_length() / 4)
+        )
 
     def _calculate_dynamic_buffer(self, max_tokens: int) -> int:
         """
@@ -260,15 +248,6 @@ class TextFileChunker:
         base_buffer = 30
         length_factor = 0.0001
         return int(base_buffer + (length_factor * max_tokens))
-
-    def _get_chat_session_approx_length(self) -> int:
-        """
-        Estimates the string length of the chat session.
-
-        Returns:
-            The approximate string length of the chat session.
-        """
-        return len(str(self.chat_session)) if self.chat_session else 0
 
     def _find_breakpoint(self, start: int, end: int) -> int:
         """
