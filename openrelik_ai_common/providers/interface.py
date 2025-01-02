@@ -159,11 +159,14 @@ class LLMProvider:
         """
         raise NotImplementedError()
 
-    def generate_file_analysis(self, prompt: str, file_content: str = None) -> str:
+    def generate_file_analysis(
+        self, prompt: str, as_object: bool = False, file_content: str = None
+    ) -> str:
         """Analyze file content using the LLM provider.
 
         Args:
             prompt: The prompt to analyze the file content with.
+            as_object: return response object from API else text.
             file_content: The content of the file to analyze.
 
         Returns:
@@ -175,6 +178,8 @@ class LLMProvider:
             llm=self,
         )
         response = chunker.process_file_content()
+        if as_object:
+            return response
         return self.response_to_text(response)
 
     def chat(self, prompt: str, as_object: bool = False) -> Union[str, object]:
