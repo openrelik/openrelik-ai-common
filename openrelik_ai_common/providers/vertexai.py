@@ -14,9 +14,8 @@
 """Vertex AI LLM provider."""
 from typing import Union
 
-import google.generativeai as genai
-import vertexai
-from vertexai.generative_models import GenerativeModel, HarmBlockThreshold, HarmCategory
+from google import genai
+from google.genai import types
 
 from . import interface, manager
 
@@ -27,38 +26,28 @@ class VertexAI(interface.LLMProvider):
     NAME = "vertexai"
     DISPLAY_NAME = "VertexAI"
 
-    SAFETY_SETTINGS = {
-        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-    }
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        vertexai.init(
+
+        self.client = genai.Client(
+            vertexai=True,
             project=self.config.get("project_id"),
+            location=self.config.get("location")
         )
 
-        self.client = GenerativeModel(
-            model_name=self.config.get("model"),
-            generation_config=self.generation_config,
-            system_instruction=self.config.get("system_instructions"),
-            safety_settings=self.SAFETY_SETTINGS,
-        )
         self.chat_session = self.create_chat_session()
-
-    @property
-    def generation_config(self):
-        return {
-            "temperature": self.config.get("temperature"),
-            "top_p": self.config.get("top_p_sampling"),
-            "top_k": self.config.get("top_k_sampling"),
-        }
 
     def create_chat_session(self):
         """Create chat session object."""
-        return self.client.start_chat()
+        return self.client.chats.create(
+            model=self.config.get("model"),
+            config=types.GenerateContentConfig(
+                system_instruction=self.config.get("system_instructions"),
+                temperature=self.config.get("temperature"),
+                top_p=self.config.get("top_p_sampling"),
+                top_k=self.config.get("top_k_sampling")
+            ),
+        )
 
     def count_tokens(self, prompt: str) -> int:
         """
@@ -70,7 +59,10 @@ class VertexAI(interface.LLMProvider):
         Returns:
             The number of tokens in the prompt.
         """
-        return self.client.count_tokens(prompt).total_tokens
+        return self.client.models.count_tokens(
+            model=self.config.get("model"),
+            contents=prompt).total_tokens
+
 
     def get_max_input_tokens(self, model_name: str) -> int:
         """
@@ -84,9 +76,11 @@ class VertexAI(interface.LLMProvider):
         """
         if self.max_input_tokens:
             return self.max_input_tokens
-        self.max_input_tokens = genai.get_model(
-            f"models/{model_name}"
-        ).input_token_limit
+
+        # Conservative estimate for Gemini models. No support for model lookup and token
+        # limit retrieval at the moment.
+        self.max_input_tokens = 128000
+
         return self.max_input_tokens
 
     def response_to_text(self, response):
@@ -113,7 +107,17 @@ class VertexAI(interface.LLMProvider):
         Returns:
             The generated text as a string.
         """
-        response = self.client.generate_content(prompt)
+        response = self.client.models.generate_content(
+            model=self.config.get("model"),
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=self.config.get("system_instructions"),
+                temperature=self.config.get("temperature"),
+                top_p=self.config.get("top_p_sampling"),
+                top_k=self.config.get("top_k_sampling")
+            ),
+        )
+
         if as_object:
             return response
         return self.response_to_text(response)
