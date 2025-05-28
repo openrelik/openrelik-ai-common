@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/openrelik-worker-common
+      url: https://pypi.org/p/openrelik-ai-common
     permissions:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
 
