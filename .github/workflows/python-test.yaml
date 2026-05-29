@@ -1,0 +1,24 @@
+name: Python Unit Tests
+
+on: [push, pull_request]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        uv sync --all-groups
+    - name: Test with pytest - ${{ matrix.python-version }}
+      run: |
+        uv run pytest --cov=openrelik_ai_common -v
