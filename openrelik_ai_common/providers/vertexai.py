@@ -102,7 +102,7 @@ class VertexAI(interface.LLMProvider):
 
         Args:
             prompt: The prompt to use for the generation.
-            as_object: return response object from API else text.
+            as_object: Return response object from API if True, otherwise return text.
 
         Returns:
             The generated text as a string.
@@ -127,7 +127,7 @@ class VertexAI(interface.LLMProvider):
 
         Args:
             prompt: The user prompt to chat with.
-            as_object: return response object from API else text.
+            as_object: Return response object from API if True, otherwise return text.
             chat_session: Optional chat session object.
 
         Returns:

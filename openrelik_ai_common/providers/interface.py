@@ -152,7 +152,7 @@ class LLMProvider:
 
         Args:
             prompt: The prompt to generate a response for.
-            as_object: return response object from API else text.
+            as_object: Return response object from API if True, otherwise return text.
 
         Returns:
             The generated response.
@@ -166,7 +166,7 @@ class LLMProvider:
 
         Args:
             prompt: The prompt to analyze the file content with.
-            as_object: return response object from API else text.
+            as_object: Return response object from API if True, otherwise return text.
             file_content: The content of the file to analyze.
 
         Returns:
@@ -187,7 +187,7 @@ class LLMProvider:
 
         Args:
             prompt: The user prompt to chat with.
-            as_object: return response object from API else text.
+            as_object: Return response object from API if True, otherwise return text.
 
         Returns:
             The chat response.

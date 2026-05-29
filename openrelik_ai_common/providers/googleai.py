@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2024-2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,10 +18,9 @@ import logging
 from typing import Union
 
 import backoff
-import google.generativeai as genai
 import ratelimit
-from google.api_core import exceptions
-from google.generativeai.types import HarmBlockThreshold, HarmCategory, generation_types
+from google import genai
+from google.genai import errors, types
 
 from . import interface, manager
 
@@ -36,9 +35,7 @@ logger = logging.getLogger(__name__)
 
 def _backoff_handler(details) -> None:
     """Backoff handler for Google Generative AI calls."""
-    logger.info(
-        "Backing off %s seconds after %s tries", details["wait"], details["tries"]
-    )
+    logger.info("Backing off %s seconds after %s tries", details["wait"], details["tries"])
 
 
 class GoogleAI(interface.LLMProvider):
@@ -47,40 +44,47 @@ class GoogleAI(interface.LLMProvider):
     NAME = "googleai"
     DISPLAY_NAME = "Google AI"
 
-    SAFETY_SETTINGS = {
-        HarmCategory.HARM_CATEGORY_HATE_SPEECH: (HarmBlockThreshold.BLOCK_ONLY_HIGH),
-        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: (
-            HarmBlockThreshold.BLOCK_ONLY_HIGH
+    SAFETY_SETTINGS = [
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            threshold=types.HarmBlockThreshold.BLOCK_ONLY_HIGH,
         ),
-        HarmCategory.HARM_CATEGORY_HARASSMENT: (HarmBlockThreshold.BLOCK_ONLY_HIGH),
-        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: (
-            HarmBlockThreshold.BLOCK_ONLY_HIGH
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold=types.HarmBlockThreshold.BLOCK_ONLY_HIGH,
         ),
-    }
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+            threshold=types.HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        ),
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            threshold=types.HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        ),
+    ]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        genai.configure(api_key=self.config.get("api_key"))
-        self.client = genai.GenerativeModel(
-            model_name=self.config.get("model"),
-            generation_config=self.generation_config,
-            system_instruction=self.config.get("system_instructions"),
-            safety_settings=self.SAFETY_SETTINGS,
-        )
+        self.client = genai.Client(api_key=self.config.get("api_key"))
         self.chat_session = self.create_chat_session()
 
     @property
-    def generation_config(self) -> dict[str, float]:
+    def generation_config(self) -> types.GenerateContentConfig:
         """Get the generation config for the Google AI service."""
-        return {
-            "temperature": self.config.get("temperature"),
-            "top_p": self.config.get("top_p_sampling"),
-            "top_k": self.config.get("top_k_sampling"),
-        }
+        return types.GenerateContentConfig(
+            system_instruction=self.config.get("system_instructions"),
+            temperature=self.config.get("temperature"),
+            top_p=self.config.get("top_p_sampling"),
+            top_k=self.config.get("top_k_sampling"),
+            safety_settings=self.SAFETY_SETTINGS,
+        )
 
-    def create_chat_session(self) -> genai.ChatSession:
+    def create_chat_session(self):
         """Create a chat session with the Google AI service."""
-        return self.client.start_chat()
+        return self.client.chats.create(
+            model=self.config.get("model"),
+            config=self.generation_config,
+        )
 
     def count_tokens(self, prompt: str) -> int:
         """Count the number of tokens in a prompt using the Google AI service.
@@ -91,7 +95,10 @@ class GoogleAI(interface.LLMProvider):
         Returns:
             int: The number of tokens in the prompt.
         """
-        return self.client.count_tokens(prompt).total_tokens
+        return self.client.models.count_tokens(
+            model=self.config.get("model"),
+            contents=prompt,
+        ).total_tokens
 
     def get_max_input_tokens(self, model_name: str) -> int:
         """Get the max number of input tokens allowed for a model.
@@ -104,9 +111,9 @@ class GoogleAI(interface.LLMProvider):
         """
         if self.max_input_tokens:
             return self.max_input_tokens
-        self.max_input_tokens = genai.get_model(
-            f"models/{model_name}"
-        ).input_token_limit
+        clean_model_name = model_name if model_name.startswith("models/") else f"models/{model_name}"
+        model_info = self.client.models.get(model=clean_model_name)
+        self.max_input_tokens = model_info.input_token_limit
         return self.max_input_tokens
 
     def response_to_text(self, response):
@@ -125,13 +132,8 @@ class GoogleAI(interface.LLMProvider):
     @backoff.on_exception(
         backoff.expo,
         (
-            exceptions.ResourceExhausted,
-            exceptions.ServiceUnavailable,
-            exceptions.GoogleAPIError,
-            exceptions.InternalServerError,
-            exceptions.Cancelled,
+            errors.APIError,
             ratelimit.RateLimitException,
-            ValueError,
         ),  # Exceptions to retry on
         max_time=TEN_MINUTES,
         on_backoff=_backoff_handler,  # Function to call when retrying
@@ -139,17 +141,21 @@ class GoogleAI(interface.LLMProvider):
     @ratelimit.limits(calls=CALL_LIMIT, period=ONE_MINUTE)
     def generate(
         self, prompt: str, as_object: bool = False
-    ) -> Union[str, generation_types.GenerateContentResponse]:
+    ) -> Union[str, types.GenerateContentResponse]:
         """Generate text using the Google AI service.
 
         Args:
             prompt: The prompt to use for the generation.
-            as_object: return response object from API else text.
+            as_object: Return response object from API if True, otherwise return text.
 
         Returns:
             str or object: Generated text as a string or response object from the API.
         """
-        response = self.client.generate_content(prompt)
+        response = self.client.models.generate_content(
+            model=self.config.get("model"),
+            contents=prompt,
+            config=self.generation_config,
+        )
         if as_object:
             return response
         return response.text
@@ -159,13 +165,8 @@ class GoogleAI(interface.LLMProvider):
     @backoff.on_exception(
         backoff.expo,
         (
-            exceptions.ResourceExhausted,
-            exceptions.ServiceUnavailable,
-            exceptions.GoogleAPIError,
-            exceptions.InternalServerError,
-            exceptions.Cancelled,
+            errors.APIError,
             ratelimit.RateLimitException,
-            ValueError,
         ),  # Exceptions to retry on
         max_time=TEN_MINUTES,
         on_backoff=_backoff_handler,  # Function to call when retrying
@@ -173,12 +174,12 @@ class GoogleAI(interface.LLMProvider):
     @ratelimit.limits(calls=CALL_LIMIT, period=ONE_MINUTE)
     def chat(
         self, prompt: str, as_object: bool = False
-    ) -> Union[str, generation_types.GenerateContentResponse]:
+    ) -> Union[str, types.GenerateContentResponse]:
         """Chat using the Google AI service.
 
         Args:
             prompt: The user prompt to chat with.
-            as_object: return response object from API else text.
+            as_object: Return response object from API if True, otherwise return text.
 
         Returns:
             str or object: Chat response as a string or response object from the API.
@@ -198,17 +199,15 @@ class GoogleAI(interface.LLMProvider):
         However in some cases the model sends an empty content, we patch it and
         replace it with an ack message to avoid erroring out when re-sending the
         empty content in history with the next message.
-
-        Args:
-            chat_session: The chat session object.
         """
-        history = self.chat_session.history
+        # TODO: Use a public API once available. Using private _curated_history is currently the only way to inspect/modify chat history in the google-genai SDK.
+        history = self.chat_session._curated_history
         history_patched = []
         for content in history:
             if not content.parts:
-                content.parts = [genai.types.content_types.to_part("ack")]
+                content.parts = [types.Part(text="ack")]
             history_patched.append(content)
-        self.chat_session.history = history_patched
+        self.chat_session._curated_history = history_patched
 
 
 manager.LLMManager.register_provider(GoogleAI)
