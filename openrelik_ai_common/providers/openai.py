@@ -162,7 +162,7 @@ class OpenAIProvider(interface.LLMProvider):
 
         Args:
             prompt: The prompt to use for the generation.
-            as_object: return response object from API else text.
+            as_object: Return response object from API if True, otherwise return text.
 
         Returns:
             str or object: Generated text as a string or response object from the API.
@@ -194,7 +194,7 @@ class OpenAIProvider(interface.LLMProvider):
 
         Args:
             prompt: The user prompt to chat with.
-            as_object: return response object from API else text.
+            as_object: Return response object from API if True, otherwise return text.
 
         Returns:
             str or object: Chat response as a string or response object from the API.

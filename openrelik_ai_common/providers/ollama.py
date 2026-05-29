@@ -146,7 +146,7 @@ class Ollama(interface.LLMProvider):
 
         Args:
             prompt: The prompt to use for the generation.
-            as_object: return response object from API else text.
+            as_object: Return response object from API if True, otherwise return text.
 
         Raises:
             ValueError: If the generation fails.
@@ -173,7 +173,7 @@ class Ollama(interface.LLMProvider):
 
         Args:
             prompt: The user prompt to chat with.
-            as_object: return response object from API else text.
+            as_object: Return response object from API if True, otherwise return text.
 
         Returns:
             The chat response.
