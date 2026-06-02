@@ -164,6 +164,7 @@ class TextFileChunker:
         Returns:
             A tuple containing the next chunk (or None if end of file) and the updated offset.
         """
+        offset = int(offset)
         if offset >= len(self.file_content):
             return None, offset
 
@@ -173,10 +174,10 @@ class TextFileChunker:
         )
 
         # Estimate the end character index based on available tokens
-        estimated_end_char = min(offset + available_tokens * 4, len(self.file_content))
+        estimated_end_char = int(min(offset + available_tokens * 4, len(self.file_content)))
 
         # Find a suitable breakpoint for a clean chunk break
-        breakpoint = self._find_breakpoint(offset, estimated_end_char)
+        breakpoint = int(self._find_breakpoint(offset, estimated_end_char))
 
         # Extract the chunk and update the offset
         chunk = self.file_content[offset:breakpoint]
