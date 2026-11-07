@@ -1,3 +1,11 @@
+> [!IMPORTANT]
+> **This repository has moved to [openrelik/openrelik](https://github.com/openrelik/openrelik),**
+> the OpenRelik monorepo, where it lives in [`libs/ai-common/`](https://github.com/openrelik/openrelik/tree/main/libs/ai-common).
+> This repository is archived and read-only.
+>
+> The full history moved with it, and its tags are there as `ai-common-<tag>`. Open issues were moved too. Please open new issues and pull requests in
+> [openrelik/openrelik](https://github.com/openrelik/openrelik).
+
 ### Common utilities for OpenRelik AI functionality.
 
 ```python
